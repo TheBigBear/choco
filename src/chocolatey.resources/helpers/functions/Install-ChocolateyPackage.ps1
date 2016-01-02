@@ -48,10 +48,10 @@ OPTIONAL (Right now) - This allows a checksum to be validated for files that are
 OPTIONAL (Right now) - This allows a checksum to be validated for files that are not local
 
 .PARAMETER ChecksumType
-OPTIONAL (Right now) - 'md5' or 'sha1' - defaults to 'md5'
+OPTIONAL (Right now) - 'md5', 'sha1', 'sha256' or 'sha512' - defaults to 'md5'
 
 .PARAMETER ChecksumType64
-OPTIONAL (Right now) - 'md5' or 'sha1' - defaults to ChecksumType
+OPTIONAL (Right now) - 'md5', 'sha1', 'sha256' or 'sha512' - defaults to ChecksumType
 
 .PARAMETER options
 OPTIONAL - Specify custom headers
@@ -103,6 +103,7 @@ param(
 
   $chocTempDir = Join-Path $env:TEMP "chocolatey"
   $tempDir = Join-Path $chocTempDir "$packageName"
+  if ($env:packageVersion -ne $null) {$tempDir = Join-Path $tempDir "$env:packageVersion"; }
 
   if (![System.IO.Directory]::Exists($tempDir)) { [System.IO.Directory]::CreateDirectory($tempDir) | Out-Null }
   $file = Join-Path $tempDir "$($packageName)Install.$fileType"

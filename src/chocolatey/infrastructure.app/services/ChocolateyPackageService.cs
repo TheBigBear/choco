@@ -70,6 +70,11 @@ namespace chocolatey.infrastructure.app.services
             perform_source_runner_action(config, r => r.ensure_source_app_installed(config, (packageResult) => handle_package_result(packageResult, config, CommandNameType.install)));
         }
 
+        public int count_run(ChocolateyConfiguration config)
+        {
+            return perform_source_runner_function(config, r => r.count_run(config));
+        }
+
         private void perform_source_runner_action(ChocolateyConfiguration config, Action<ISourceRunner> action)
         {
             var runner = _sourceRunners.FirstOrDefault(r => r.SourceType == config.SourceType);
@@ -102,7 +107,7 @@ namespace chocolatey.infrastructure.app.services
 
         public IEnumerable<PackageResult> list_run(ChocolateyConfiguration config)
         {
-            this.Log().Debug(() => "Searching for package information");
+            if (config.RegularOutput) this.Log().Debug(() => "Searching for package information");
 
             var packages = new List<IPackage>();
 
@@ -260,6 +265,7 @@ namespace chocolatey.infrastructure.app.services
                     }
                 }
 
+                _filesService.ensure_compatible_file_attributes(packageResult,config);
                 _configTransformService.run(packageResult, config);
                 pkgInfo.FilesSnapshot = _filesService.capture_package_files(packageResult, config);
 
@@ -774,7 +780,10 @@ ATTENTION: You must take manual action to remove {1} from
                 }
             }
 
+            rollbackDirectory = _fileSystem.get_full_path(rollbackDirectory);
+            
             if (string.IsNullOrWhiteSpace(rollbackDirectory) || !_fileSystem.directory_exists(rollbackDirectory)) return;
+            if (!rollbackDirectory.StartsWith(ApplicationParameters.PackageBackupLocation) || rollbackDirectory.is_equal_to(ApplicationParameters.PackageBackupLocation)) return;
 
             this.Log().Debug("Attempting rollback");
 

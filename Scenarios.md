@@ -1,6 +1,6 @@
 ## Chocolatey Usage Scenarios
 
-### ChocolateyInstallCommand [ 30 Scenario(s), 254 Observation(s) ]
+### ChocolateyInstallCommand [ 34 Scenario(s), 287 Observation(s) ]
 
 #### when force installing a package that depends on an unavailable newer version of an installed dependency forcing dependencies
 
@@ -223,6 +223,41 @@
  * should not have warning package result
  * should not install a package in the lib directory
 
+#### when installing a package that has nonterminating errors
+
+ * config should match package result name
+ * should contain a message that it installed successfully
+ * should have a successful package result
+ * should have a version of one dot zero
+ * should install the expected version of the package
+ * should install the package in the lib directory
+ * should install where install location reports
+ * should not have inconclusive package result
+ * should not have warning package result
+
+#### when installing a package that has nonterminating errors with fail on stderr
+
+ * should contain a warning message that it was unable to install a package
+ * should have an error package result
+ * should have expected error in package result
+ * should not have a successful package result
+ * should not have inconclusive package result
+ * should not have warning package result
+ * should not install a package in the lib directory
+ * should put a package in the lib bad directory
+
+#### when installing a package with a dependent package that also depends on a less constrained but still valid dependency of the same package
+
+ * [PENDING] should contain a message that everything installed successfully
+ * [PENDING] should have a successful package result
+ * [PENDING] should install a package in the lib directory
+ * [PENDING] should install the dependency in the lib directory
+ * [PENDING] should install the expected version of the constrained dependency
+ * [PENDING] should install the expected version of the dependency
+ * [PENDING] should install where install location reports
+ * [PENDING] should not have inconclusive package result
+ * [PENDING] should not have warning package result
+
 #### when installing a package with config transforms
 
  * should add the insert value in the config due to XDT InsertIfMissing
@@ -279,6 +314,16 @@
  * [PENDING] should not install the conflicting package in the lib directory
  * [PENDING] should not upgrade the exact version dependency
  * [PENDING] should not upgrade the minimum version dependency
+
+#### when installing a package with dependencies on an older version of a package than is already installed
+
+ * [PENDING] should contain a message that it was unable to install any packages
+ * [PENDING] should have an error package result
+ * [PENDING] should not have a successful package result
+ * [PENDING] should not have inconclusive package result
+ * [PENDING] should not have warning package result
+ * [PENDING] should not install the conflicting package in the lib directory
+ * [PENDING] should not upgrade the exact version dependency
 
 #### when installing a side by side package
 
@@ -346,7 +391,98 @@
  * should not have inconclusive package result
  * should not have warning package result
 
-### ChocolateyUninstallCommand [ 12 Scenario(s), 84 Observation(s) ]
+### ChocolateyListCommand [ 6 Scenario(s), 30 Observation(s) ]
+
+#### when listing local packages
+
+ * should contain a summary
+ * should contain debugging messages
+ * should contain packages and versions with a space between them
+ * should not contain packages and versions with a pipe between them
+
+#### when listing local packages limiting output
+
+ * should contain packages and versions with a pipe between them
+ * should not contain a summary
+ * should not contain debugging messages
+ * should not contain packages and versions with a space between them
+ * should only have messages related to package information
+
+#### when searching all available packages
+
+ * should contain a summary
+ * should contain debugging messages
+ * should contain packages and versions with a space between them
+ * should list available packages as many times as they show on the feed
+ * should not contain packages and versions with a pipe between them
+
+#### when searching for a particular package
+
+ * should contain a summary
+ * should contain debugging messages
+ * should contain packages and versions with a space between them
+ * should not contain packages that do not match
+
+#### when searching packages with no filter happy path
+
+ * should contain a summary
+ * should contain debugging messages
+ * should contain packages and versions with a space between them
+ * should list available packages only once
+ * should not contain packages and versions with a pipe between them
+
+#### when searching packages with verbose
+
+ * should contain a summary
+ * should contain debugging messages
+ * should contain description
+ * should contain download counts
+ * should contain packages and versions with a space between them
+ * should contain tags
+ * should not contain packages and versions with a pipe between them
+
+### ChocolateyPinCommand [ 9 Scenario(s), 12 Observation(s) ]
+
+#### when listing pins with an existing pin
+
+ * should contain existing pin messages
+ * should not contain list results
+
+#### when listing pins with existing pins
+
+ * should contain a pin message for each existing pin
+ * should not contain list results
+
+#### when listing pins with no pins
+
+ * should not contain any pins by default
+ * should not contain list results
+
+#### when removing a pin for a non installed package
+
+ * should throw an error about not finding the package
+
+#### when removing a pin for a pinned package
+
+ * should contain success message
+
+#### when removing a pin for an unpinned package
+
+ * should contain nothing to do message
+
+#### when setting a pin for a non installed package
+
+ * should throw an error about not finding the package
+
+#### when setting a pin for an already pinned package
+
+ * should contain nothing to do message
+
+#### when setting a pin for an installed package
+
+ * should contain success message
+
+### ChocolateyUninstallCommand [ 13 Scenario(s), 90 Observation(s) ]
 
 #### when force uninstalling a package
 
@@ -464,11 +600,20 @@
  * should not have inconclusive package result
  * should not have warning package result
 
+#### when uninstalling a package with readonly files
+
+ * should contain a message that it uninstalled successfully
+ * should delete the rollback
+ * should have a successful package result
+ * should not have inconclusive package result
+ * should not have warning package result
+ * should uninstall the package from the lib directory
+
 #### when uninstalling packages with packages config
 
  * should throw an error that it is not allowed
 
-### ChocolateyUpgradeCommand [ 25 Scenario(s), 204 Observation(s) ]
+### ChocolateyUpgradeCommand [ 26 Scenario(s), 214 Observation(s) ]
 
 #### when force upgrading a package
 
@@ -707,6 +852,19 @@
  * should upgrade the exact version dependency
  * should upgrade the minimum version dependency
  * should upgrade the package
+
+#### when upgrading a package with readonly files
+
+ * should contain a warning message that it upgraded successfully
+ * should contain a warning message with old and new versions
+ * should contain newer version in directory
+ * should delete the rollback
+ * should have a successful package result
+ * should not have inconclusive package result
+ * should not have warning package result
+ * should upgrade a package in the lib directory
+ * should upgrade the package
+ * should upgrade where install location reports
 
 #### when upgrading a package with unavailable dependencies
 

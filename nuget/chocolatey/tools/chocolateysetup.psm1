@@ -3,27 +3,25 @@ $chocInstallVariableName = "ChocolateyInstall"
 $sysDrive = $env:SystemDrive
 $tempDir = $env:TEMP
 $defaultChocolateyPathOld = "$sysDrive\Chocolatey"
-#$ErrorActionPreference = 'Stop'
-$debugModeParams = $null
 
 function Initialize-Chocolatey {
 <#
   .DESCRIPTION
     This will initialize the Chocolatey tool by
-      a) setting up the "nugetPath" (the location where all chocolatey nuget packages will be installed)
-      b) Installs chocolatey into the "nugetPath"
+      a) setting up the "chocolateyPath" (the location where all chocolatey nuget packages will be installed)
+      b) Installs chocolatey into the "chocolateyPath"
             c) Instals .net 4.0 if needed
-      d) Adds chocolaty to the PATH environment variable so you have access to the chocolatey|cinst commands.
-  .PARAMETER  NuGetPath
-    Allows you to override the default path of (C:\Chocolatey\) by specifying a directory chocolaty will install nuget packages.
+      d) Adds Chocolatey to the PATH environment variable so you have access to the choco commands.
+  .PARAMETER  ChocolateyPath
+    Allows you to override the default path of (C:\ProgramData\chocolatey\) by specifying a directory chocolatey will install nuget packages.
 
   .EXAMPLE
     C:\PS> Initialize-Chocolatey
 
-    Installs chocolatey into the default C:\Chocolatey\ directory.
+    Installs chocolatey into the default C:\ProgramData\Chocolatey\ directory.
 
   .EXAMPLE
-    C:\PS> Initialize-Chocolatey -nugetPath "D:\ChocolateyInstalledNuGets\"
+    C:\PS> Initialize-Chocolatey -chocolateyPath "D:\ChocolateyInstalledNuGets\"
 
     Installs chocolatey into the custom directory D:\ChocolateyInstalledNuGets\
 
@@ -32,15 +30,6 @@ param(
   [Parameter(Mandatory=$false)][string]$chocolateyPath = ''
 )
   Write-Debug "Initialize-Chocolatey"
-
-  if ($env:ChocolateyEnvironmentDebug -eq 'true') {
-    $debugModeParams = '-dv'
-  }
-
-  Install-DotNet4IfMissing
-
-  $chocoNew = Join-Path $thisScriptFolder 'chocolateyInstall\choco.exe'
-  & $chocoNew unpackself -fy $debugModeParams
 
   $installModule = Join-Path $thisScriptFolder 'chocolateyInstall\helpers\chocolateyInstaller.psm1'
   Import-Module $installModule -Force
@@ -109,6 +98,8 @@ Creating Chocolatey folders if they do not already exist.
     Upgrade-OldChocolateyInstall $defaultChocolateyPathOld $chocolateyPath
     Install-ChocolateyBinFiles $chocolateyPath $chocolateyExePath
   }
+
+  Install-DotNet4IfMissing
 
 @"
 Chocolatey (choco.exe) is now ready.
@@ -202,7 +193,8 @@ param(
     Write-Output "Attempting to upgrade `'$chocolateyPathOld`' to `'$chocolateyPath`'."
     Write-Warning "Copying the contents of `'$chocolateyPathOld`' to `'$chocolateyPath`'. `n This step may fail if you have anything in this folder running or locked."
     Write-Output 'If it fails, just manually copy the rest of the items out and then delete the folder.'
-    Write-Host "!!!! ATTN: YOU WILL NEED TO CLOSE AND REOPEN YOUR SHELL !!!!" -ForegroundColor Magenta -BackgroundColor Black
+    Write-Warning "!!!! ATTN: YOU WILL NEED TO CLOSE AND REOPEN YOUR SHELL !!!!"
+    #-ForegroundColor Magenta -BackgroundColor Black
 
     $chocolateyExePathOld = Join-Path $chocolateyPathOld 'bin'
     'Machine', 'User' |
@@ -309,7 +301,8 @@ param(
   $chocoExeDest = Join-Path $chocolateyPath 'choco.exe'
   Copy-Item $chocoExe $chocoExeDest -force
 
-  & $chocoExeDest unpackself -fy $debugModeParams
+  Write-Debug "Copying the contents of `'$chocInstallFolder`' to `'$chocolateyPath`'."
+  Copy-Item $chocInstallFolder\* $chocolateyPath -recurse -force
 }
 
 function Ensure-ChocolateyLibFiles {
@@ -319,16 +312,29 @@ param(
   Write-Debug "Ensure-ChocolateyLibFiles"
   $chocoPkgDirectory = Join-Path $chocolateyLibPath 'chocolatey'
 
-  if ( -not (Test-Path("$chocoPkgDirectory\chocolatey.nupkg")) ) {
-    Write-Output "Ensuring '$chocoPkgDirectory' exists."
-    Create-DirectoryIfNotExists $chocoPkgDirectory
+  Create-DirectoryIfNotExists $chocoPkgDirectory
 
-    $chocoPkg = Get-ChildItem "$thisScriptFolder/../../" | ?{$_.name -match "^chocolatey.*nupkg"} | Sort name -Descending | Select -First 1
-    if ($chocoPkg -ne '') { $chocoPkg = $chocoPkg.FullName }
-    "$tempDir\chocolatey.zip", "$chocoPkg" | % {
-      if ($_ -ne $null -and $_ -ne '') {
-        if (Test-Path $_) {
-          Copy-Item $_ "$chocoPkgDirectory\chocolatey.nupkg" -force -ErrorAction SilentlyContinue
+  if (!(Test-Path("$chocoPkgDirectory\chocolatey.nupkg"))) {
+    Write-Output "chocolatey.nupkg file not installed in lib.`n Attempting to locate it from bootstrapper."
+    $chocoZipFile = Join-Path $tempDir "chocolatey\chocInstall\chocolatey.zip"
+
+    Write-Debug "First the zip file at '$chocoZipFile'."
+    Write-Debug "Then from a neighboring chocolatey.*nupkg file '$thisScriptFolder/../../'."
+
+    if (Test-Path("$chocoZipFile")) {
+      Write-Debug "Copying '$chocoZipFile' to '$chocoPkgDirectory\chocolatey.nupkg'."
+      Copy-Item "$chocoZipFile" "$chocoPkgDirectory\chocolatey.nupkg" -Force -ErrorAction SilentlyContinue
+    }
+
+    if (!(Test-Path("$chocoPkgDirectory\chocolatey.nupkg"))) {
+      $chocoPkg = Get-ChildItem "$thisScriptFolder/../../" | ?{$_.name -match "^chocolatey.*nupkg" } | Sort name -Descending | Select -First 1
+      if ($chocoPkg -ne '') { $chocoPkg = $chocoPkg.FullName }
+      "$chocoZipFile", "$chocoPkg" | % {
+        if ($_ -ne $null -and $_ -ne '') {
+          if (Test-Path $_) {
+            Write-Debug "Copying '$_' to '$chocoPkgDirectory\chocolatey.nupkg'."
+            Copy-Item $_ "$chocoPkgDirectory\chocolatey.nupkg" -Force -ErrorAction SilentlyContinue
+          }
         }
       }
     }
@@ -458,14 +464,14 @@ param(
 
   if(!(test-path "$env:windir\Microsoft.Net\$fx\v4.0.30319") -or $forceFxInstall) {
     if (!(Test-Path $NetFx4Path)) {
-      Write-Host "Creating folder `'$NetFx4Path`'"
+      Write-Output "Creating folder `'$NetFx4Path`'"
       $null = New-Item -Path "$NetFx4Path" -ItemType Directory
     }
 
     $netFx4InstallTries += 1
 
     if (!(Test-Path $NetFx4Installer)) {
-      Write-Host "Downloading `'$NetFx4Url`' to `'$NetFx4Installer`' - the installer is 40+ MBs, so this could take a while on a slow connection."
+      Write-Output "Downloading `'$NetFx4Url`' to `'$NetFx4Installer`' - the installer is 40+ MBs, so this could take a while on a slow connection."
       (New-Object Net.WebClient).DownloadFile("$NetFx4Url","$NetFx4Installer")
     }
 
@@ -477,7 +483,7 @@ param(
     # For the actual setup.exe (if you want to unpack first) - /repair /x86 /x64 /ia64 /parameterfolder Client /q /norestart
     $psi.Arguments = "/q /norestart /repair"
 
-    Write-Host "Installing `'$NetFx4Installer`' - this may take awhile with no output."
+    Write-Output "Installing `'$NetFx4Installer`' - this may take awhile with no output."
     $s = [System.Diagnostics.Process]::Start($psi);
     $s.WaitForExit();
     if ($s.ExitCode -ne 0 -and $s.ExitCode -ne 3010) {

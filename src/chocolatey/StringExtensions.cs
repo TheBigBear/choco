@@ -17,6 +17,7 @@ namespace chocolatey
 {
     using System;
     using System.Globalization;
+    using System.Security;
     using System.Text.RegularExpressions;
     using infrastructure.app;
     using infrastructure.logging;
@@ -83,6 +84,26 @@ namespace chocolatey
             return input;
         }
 
+        /// <summary>
+        /// Takes a string and returns a secure string
+        /// </summary>
+        /// <param name="input">The input.</param>
+        /// <returns></returns>
+        public static SecureString to_secure_string(this string input)
+        {
+            var secureString = new SecureString();
+
+            if (string.IsNullOrWhiteSpace(input)) return secureString;
+            
+            foreach (char character in input)
+            {
+                secureString.AppendChar(character);
+            }
+            
+            return secureString;
+        }
+
+
         private static readonly Regex _spacePattern = new Regex(@"\s", RegexOptions.Compiled);
 
         /// <summary>
@@ -111,6 +132,18 @@ namespace chocolatey
         public static bool is_equal_to(this string input, string other)
         {
             return string.Compare(input, other, ignoreCase: true, culture: CultureInfo.InvariantCulture) == 0;
+        }
+
+        /// <summary>
+        /// Determines whether a string value contains a search value.
+        /// </summary>
+        /// <param name="input">The input.</param>
+        /// <param name="search">The value to search for.</param>
+        /// <param name="comparison">The comparison.</param>
+        /// <returns>True if the value to search for is in the input string</returns>
+        public static bool contains(this string input, string search, StringComparison comparison = StringComparison.OrdinalIgnoreCase)
+        {
+            return input.to_string().IndexOf(search, 0, comparison) >= 0;
         }
 
         /// <summary>

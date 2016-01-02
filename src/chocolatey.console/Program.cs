@@ -30,7 +30,6 @@ namespace chocolatey.console
     using infrastructure.filesystem;
     using infrastructure.licensing;
     using infrastructure.logging;
-    using infrastructure.platforms;
     using infrastructure.registration;
     using infrastructure.services;
     using resources;
@@ -77,11 +76,18 @@ namespace chocolatey.console
                     "logfile".Log().Info(() => "".PadRight(60, '='));
 #if DEBUG
                     "chocolatey".Log().Info(ChocolateyLoggers.Important, () => "{0} v{1} (DEBUG BUILD)".format_with(ApplicationParameters.Name, config.Information.ChocolateyProductVersion));
-#else
-                    "chocolatey".Log().Info(ChocolateyLoggers.Important, () => "{0} v{1}".format_with(ApplicationParameters.Name, config.Information.ChocolateyProductVersion));
+#else          
+                    if (config.Information.ChocolateyVersion == config.Information.ChocolateyProductVersion && args.Any())
+                    {
+                        "logfile".Log().Info(() => "{0} v{1}".format_with(ApplicationParameters.Name, config.Information.ChocolateyProductVersion));
+                    }
+                    else
+                    {
+                        "chocolatey".Log().Info(ChocolateyLoggers.Important, () => "{0} v{1}".format_with(ApplicationParameters.Name, config.Information.ChocolateyProductVersion));
+                    }
 #endif
-                }
 
+                }
                 
                 if (warnings.Count != 0 && config.RegularOutput)
                 {

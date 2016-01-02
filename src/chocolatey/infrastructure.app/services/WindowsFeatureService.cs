@@ -101,7 +101,6 @@ namespace chocolatey.infrastructure.app.services
         {
             set_common_args(args);
 
-            args.Add("_all_", new ExternalCommandArgument {ArgumentOption = ALL_TOKEN, Required = true});
             args.Add("_feature_", new ExternalCommandArgument {ArgumentOption = "/Enable-Feature", Required = true});
             args.Add("_package_name_", new ExternalCommandArgument
                 {
@@ -110,6 +109,8 @@ namespace chocolatey.infrastructure.app.services
                     QuoteValue = false,
                     Required = true
                 });
+            // /All should be the final argument.
+            args.Add("_all_", new ExternalCommandArgument {ArgumentOption = ALL_TOKEN, Required = true});
         }
 
         /// <summary>
@@ -155,6 +156,11 @@ namespace chocolatey.infrastructure.app.services
         public void ensure_source_app_installed(ChocolateyConfiguration config, Action<PackageResult> ensureAction)
         {
             set_executable_path_if_not_set();
+        }
+
+        public int count_run(ChocolateyConfiguration config)
+        {
+            throw new NotImplementedException("Count is not supported for this source runner.");
         }
 
         public void set_executable_path_if_not_set()

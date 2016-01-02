@@ -7,6 +7,11 @@
   [string]$packageScript
 )
 
+$DebugPreference = "SilentlyContinue"
+if ($env:ChocolateyEnvironmentDebug -eq 'true') { $DebugPreference = "Continue"; }
+$VerbosePreference = "SilentlyContinue"
+if ($env:ChocolateyEnvironmentVerbose -eq 'true') { $VerbosePreference = "Continue"; $verbosity = $true }
+
 Write-Debug "Running 'ChocolateyScriptRunner' for $($env:packageName) v$($env:packageVersion) with packageScript `'$packageScript`', packageFolder:`'$($env:packageFolder)`', installArguments: `'$installArguments`', packageParameters: `'$packageParameters`',"
 
 ## Set the culture to invariant
@@ -22,6 +27,7 @@ $Note = "Green"
 
 $version = $env:packageVersion
 $packageName = $env:packageName
+$packageVersion = $env:packageVersion
 $packageFolder = $env:packageFolder
 
 $helpersPath = (Split-Path -parent $MyInvocation.MyCommand.Definition);

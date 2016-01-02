@@ -16,20 +16,16 @@
 namespace chocolatey.tests.integration
 {
     using System.IO;
-    using System.Reflection;
-    using System.Threading;
-    using NuGet;
     using chocolatey.infrastructure.app;
     using chocolatey.infrastructure.app.configuration;
     using chocolatey.infrastructure.app.domain;
-    using chocolatey.infrastructure.app.nuget;
     using chocolatey.infrastructure.app.services;
     using chocolatey.infrastructure.commands;
     using chocolatey.infrastructure.filesystem;
+    using chocolatey.infrastructure.platforms;
 
     public class Scenario
     {
-
         private static IChocolateyPackageService _service;
 
         private static readonly DotNetFileSystem _fileSystem = new DotNetFileSystem();
@@ -51,14 +47,14 @@ namespace chocolatey.tests.integration
             string backupPackagesPath = get_package_install_path() + "-bkp";
             string shimsPath = ApplicationParameters.ShimsLocation;
 
-            _fileSystem.delete_directory_if_exists(config.CacheLocation, recursive: true);
-            _fileSystem.delete_directory_if_exists(config.Sources, recursive: true);
-            _fileSystem.delete_directory_if_exists(packagesInstallPath, recursive: true);
-            _fileSystem.delete_directory_if_exists(shimsPath, recursive: true);
-            _fileSystem.delete_directory_if_exists(badPackagesPath, recursive: true);
-            _fileSystem.delete_directory_if_exists(backupPackagesPath, recursive: true);
-            _fileSystem.delete_directory_if_exists(_fileSystem.combine_paths(get_top_level(), ".chocolatey"), recursive: true);
-            _fileSystem.delete_directory_if_exists(_fileSystem.combine_paths(get_top_level(), "extensions"), recursive: true);
+            _fileSystem.delete_directory_if_exists(config.CacheLocation, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(config.Sources, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(packagesInstallPath, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(shimsPath, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(badPackagesPath, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(backupPackagesPath, recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(_fileSystem.combine_paths(get_top_level(), ".chocolatey"), recursive: true, overrideAttributes: true);
+            _fileSystem.delete_directory_if_exists(_fileSystem.combine_paths(get_top_level(), "extensions"), recursive: true, overrideAttributes: true);
 
             _fileSystem.create_directory(config.CacheLocation);
             _fileSystem.create_directory(config.Sources);
@@ -88,30 +84,25 @@ namespace chocolatey.tests.integration
         {
             if (_service == null)
             {
-                _service= NUnitSetup.Container.GetInstance<IChocolateyPackageService>();
+                _service = NUnitSetup.Container.GetInstance<IChocolateyPackageService>();
             }
-
-            var originalPackageName = config.PackageNames;
-            var originalPackageVersion = config.Version;
-
-            config.PackageNames = packageId;
-            config.Version = version;
-            _service.install_run(config);
-            config.PackageNames = originalPackageName;
-            config.Version = originalPackageVersion;
-            //var pattern = "{0}.{1}{2}".format_with(packageId, string.IsNullOrWhiteSpace(version) ? "*" : version, Constants.PackageExtension);
-            //var files = _fileSystem.get_files(config.Sources, pattern);
-            //foreach (var file in files)
-            //{
-            //    var packageManager = NugetCommon.GetPackageManager(config, new ChocolateyNugetLogger(), null, null, false);
-            //    packageManager.InstallPackage(new OptimizedZipPackage(file), false,false);
-            //}
+            var installConfig = config.deep_copy();
+          
+            installConfig.PackageNames = packageId;
+            installConfig.Version = version;
+            _service.install_run(installConfig);
+          
+            NUnitSetup.MockLogger.Messages.Clear();
         }
 
         private static ChocolateyConfiguration baseline_configuration()
         {
+            // note that this does not mean an empty configuration. It does get influenced by
+            // prior commands, so ensure that all items go back to the default values here
             var config = NUnitSetup.Container.GetInstance<ChocolateyConfiguration>();
 
+            config.Information.PlatformType = PlatformType.Windows;
+            config.Information.IsInteractive = false;
             config.AcceptLicense = true;
             config.AllowMultipleVersions = false;
             config.AllowUnofficialBuild = true;
@@ -133,6 +124,13 @@ namespace chocolatey.tests.integration
             config.Sources = _fileSystem.get_full_path(_fileSystem.combine_paths(get_top_level(), "packages"));
             config.Version = null;
             config.Debug = true;
+            config.AllVersions = false;
+            config.Verbose = false;
+            config.Input = config.PackageNames = string.Empty;
+            config.ListCommand.LocalOnly = false;
+            //config.Features.UsePowerShellHost = true;
+            //config.Features.AutoUninstaller = true;
+            //config.Features.CheckSumFiles = true;
 
             return config;
         }
@@ -157,6 +155,22 @@ namespace chocolatey.tests.integration
         {
             var config = baseline_configuration();
             config.CommandName = CommandNameType.uninstall.to_string();
+
+            return config;
+        }
+
+        public static ChocolateyConfiguration list()
+        {
+            var config = baseline_configuration();
+            config.CommandName = CommandNameType.list.to_string();
+
+            return config;
+        }
+
+        public static ChocolateyConfiguration pin()
+        {
+            var config = baseline_configuration();
+            config.CommandName = CommandNameType.pin.to_string();
 
             return config;
         }

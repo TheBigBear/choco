@@ -1,12 +1,12 @@
 ﻿// Copyright © 2011 - Present RealDimensions Software, LLC
-// 
+//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
-// 
+//
 // You may obtain a copy of the License at
-// 
+//
 // 	http://www.apache.org/licenses/LICENSE-2.0
-// 
+//
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -28,6 +28,7 @@ namespace chocolatey.infrastructure.app.builders
     using information;
     using infrastructure.services;
     using logging;
+    using nuget;
     using platforms;
     using tolerance;
     using Environment = adapters.Environment;
@@ -64,6 +65,7 @@ namespace chocolatey.infrastructure.app.builders
             ConfigurationOptions.reset_options();
             set_global_options(args, config);
             set_environment_options(config);
+            set_environment_variables(config);
         }
 
         private static void set_file_configuration(ChocolateyConfiguration config, IFileSystem fileSystem, IXmlService xmlService, Action<string> notifyWarnLoggingAction)
@@ -73,7 +75,15 @@ namespace chocolatey.infrastructure.app.builders
 
             var configFileSettings = xmlService.deserialize<ConfigFileSettings>(globalConfigPath);
             var sources = new StringBuilder();
-            foreach (var source in configFileSettings.Sources.Where(s => !s.Disabled).or_empty_list_if_null())
+
+            var defaultSourcesInOrder = configFileSettings.Sources.Where(s => !s.Disabled).or_empty_list_if_null().ToList();
+            if (configFileSettings.Sources.Any(s => s.Priority > 0))
+            {
+                defaultSourcesInOrder = configFileSettings.Sources.Where(s => !s.Disabled && s.Priority != 0).OrderBy(s => s.Priority).or_empty_list_if_null().ToList();
+                defaultSourcesInOrder.AddRange(configFileSettings.Sources.Where(s => !s.Disabled && s.Priority == 0 ).or_empty_list_if_null().ToList());
+            }
+
+            foreach (var source in defaultSourcesInOrder)
             {
                 sources.AppendFormat("{0};", source.Value);
             }
@@ -84,23 +94,12 @@ namespace chocolatey.infrastructure.app.builders
 
             set_machine_sources(config, configFileSettings);
 
-            config.CacheLocation = !string.IsNullOrWhiteSpace(configFileSettings.CacheLocation) ? configFileSettings.CacheLocation : System.Environment.GetEnvironmentVariable("TEMP");
-            if (string.IsNullOrWhiteSpace(config.CacheLocation))
-            {
-                config.CacheLocation = fileSystem.combine_paths(ApplicationParameters.InstallLocation, "temp");
-            }
+            set_config_items(config, configFileSettings, fileSystem);
 
             FaultTolerance.try_catch_with_logging_exception(
                 () => fileSystem.create_directory_if_not_exists(config.CacheLocation),
                 "Could not create temp directory at '{0}'".format_with(config.CacheLocation),
                 logWarningInsteadOfError: true);
-
-            config.ContainsLegacyPackageInstalls = configFileSettings.ContainsLegacyPackageInstalls;
-            if (configFileSettings.CommandExecutionTimeoutSeconds <= 0)
-            {
-                configFileSettings.CommandExecutionTimeoutSeconds = ApplicationParameters.DefaultWaitForExitInSeconds;
-            }
-            config.CommandExecutionTimeoutSeconds = configFileSettings.CommandExecutionTimeoutSeconds;
 
             set_feature_flags(config, configFileSettings);
 
@@ -120,26 +119,93 @@ namespace chocolatey.infrastructure.app.builders
                         Key = source.Value,
                         Name = source.Id,
                         Username = source.UserName,
-                        EncryptedPassword = source.Password
+                        EncryptedPassword = source.Password,
+                        Priority = source.Priority
                     });
             }
         }
 
-        private static void set_feature_flags(ChocolateyConfiguration config, ConfigFileSettings configFileSettings)
+        private static void set_config_items(ChocolateyConfiguration config, ConfigFileSettings configFileSettings, IFileSystem fileSystem)
         {
-            config.Features.CheckSumFiles = set_feature_flag(ApplicationParameters.Features.CheckSumFiles, configFileSettings, defaultEnabled: true);
-            config.Features.AutoUninstaller = set_feature_flag(ApplicationParameters.Features.AutoUninstaller, configFileSettings, defaultEnabled: true);
-            config.Features.FailOnAutoUninstaller = set_feature_flag(ApplicationParameters.Features.FailOnAutoUninstaller, configFileSettings, defaultEnabled: false);
-            config.PromptForConfirmation = !set_feature_flag(ApplicationParameters.Features.AllowGlobalConfirmation, configFileSettings, defaultEnabled: false);
+            var cacheLocation = set_config_item(ApplicationParameters.ConfigSettings.CacheLocation, configFileSettings, string.IsNullOrWhiteSpace(configFileSettings.CacheLocation) ? string.Empty : configFileSettings.CacheLocation, "Cache location if not TEMP folder.");
+            config.CacheLocation = !string.IsNullOrWhiteSpace(cacheLocation) ? cacheLocation : System.Environment.GetEnvironmentVariable("TEMP");
+            if (string.IsNullOrWhiteSpace(config.CacheLocation))
+            {
+                config.CacheLocation = fileSystem.combine_paths(ApplicationParameters.InstallLocation, "temp");
+            }
+
+            var originalCommandTimeout = configFileSettings.CommandExecutionTimeoutSeconds;
+            var commandExecutionTimeoutSeconds = -1;
+            int.TryParse(
+                set_config_item(
+                    ApplicationParameters.ConfigSettings.CommandExecutionTimeoutSeconds,
+                    configFileSettings,
+                    originalCommandTimeout == 0 ?
+                        ApplicationParameters.DefaultWaitForExitInSeconds.to_string()
+                        : originalCommandTimeout.to_string(),
+                    "Default timeout for command execution."),
+                out commandExecutionTimeoutSeconds);
+            config.CommandExecutionTimeoutSeconds = commandExecutionTimeoutSeconds;
+            if (configFileSettings.CommandExecutionTimeoutSeconds <= 0)
+            {
+                set_config_item(ApplicationParameters.ConfigSettings.CommandExecutionTimeoutSeconds, configFileSettings, ApplicationParameters.DefaultWaitForExitInSeconds.to_string(), "Default timeout for command execution.", forceSettingValue: true);
+                config.CommandExecutionTimeoutSeconds = ApplicationParameters.DefaultWaitForExitInSeconds;
+            }
+
+            config.ContainsLegacyPackageInstalls = set_config_item(ApplicationParameters.ConfigSettings.ContainsLegacyPackageInstalls, configFileSettings, "true", "Install has packages installed prior to 0.9.9 series.").is_equal_to(bool.TrueString);
+            config.Proxy.Location = set_config_item(ApplicationParameters.ConfigSettings.Proxy, configFileSettings, string.Empty, "Explicit proxy location.");
+            config.Proxy.User = set_config_item(ApplicationParameters.ConfigSettings.ProxyUser, configFileSettings, string.Empty, "Optional proxy user.");
+            config.Proxy.EncryptedPassword = set_config_item(ApplicationParameters.ConfigSettings.ProxyPassword, configFileSettings, string.Empty, "Optional proxy password. Encrypted.");
         }
 
-        private static bool set_feature_flag(string featureName, ConfigFileSettings configFileSettings, bool defaultEnabled)
+        private static string set_config_item(string configName, ConfigFileSettings configFileSettings, string defaultValue, string description, bool forceSettingValue = false)
+        {
+            var config = configFileSettings.ConfigSettings.FirstOrDefault(f => f.Key.is_equal_to(configName));
+            if (config == null)
+            {
+                config = new ConfigFileConfigSetting
+                {
+                    Key = configName,
+                    Value = defaultValue,
+                    Description = description
+                };
+
+                configFileSettings.ConfigSettings.Add(config);
+            }
+            if (forceSettingValue)
+            {
+                config.Value = defaultValue;
+            }
+
+            config.Description = description;
+
+            return config.Value;
+        }
+
+        private static void set_feature_flags(ChocolateyConfiguration config, ConfigFileSettings configFileSettings)
+        {
+            config.Features.CheckSumFiles = set_feature_flag(ApplicationParameters.Features.CheckSumFiles, configFileSettings, defaultEnabled: true, description: "Checksum files when pulled in from internet (based on package).");
+            config.Features.AutoUninstaller = set_feature_flag(ApplicationParameters.Features.AutoUninstaller, configFileSettings, defaultEnabled: true, description: "Uninstall from programs and features without requiring an explicit uninstall script.");
+            config.Features.FailOnAutoUninstaller = set_feature_flag(ApplicationParameters.Features.FailOnAutoUninstaller, configFileSettings, defaultEnabled: false, description: "Fail if automatic uninstaller fails.");
+            config.Features.FailOnStandardError = set_feature_flag(ApplicationParameters.Features.FailOnStandardError, configFileSettings, defaultEnabled: false, description: "Fail if install provider writes to stderr.");
+            config.Features.UsePowerShellHost = set_feature_flag(ApplicationParameters.Features.UsePowerShellHost, configFileSettings, defaultEnabled: true, description: "Use Chocolatey's built-in PowerShell host.");
+            config.PromptForConfirmation = !set_feature_flag(ApplicationParameters.Features.AllowGlobalConfirmation, configFileSettings, defaultEnabled: false, description: "Prompt for confirmation in scripts or bypass.");
+        }
+
+        private static bool set_feature_flag(string featureName, ConfigFileSettings configFileSettings, bool defaultEnabled, string description)
         {
             var feature = configFileSettings.Features.FirstOrDefault(f => f.Name.is_equal_to(featureName));
 
             if (feature == null)
             {
-                configFileSettings.Features.Add(new ConfigFileFeatureSetting {Name = featureName, Enabled = defaultEnabled});
+                feature = new ConfigFileFeatureSetting
+                {
+                    Name = featureName,
+                    Enabled = defaultEnabled,
+                    Description = description
+                };
+
+                configFileSettings.Features.Add(feature);
             }
             else
             {
@@ -148,6 +214,8 @@ namespace chocolatey.infrastructure.app.builders
                     feature.Enabled = defaultEnabled;
                 }
             }
+
+            feature.Description = description;
 
             return feature != null ? feature.Enabled : defaultEnabled;
         }
@@ -193,7 +261,13 @@ namespace chocolatey.infrastructure.app.builders
                                  option => config.CacheLocation = option.remove_surrounding_quotes())
                             .Add("allowunofficial|allow-unofficial|allowunofficialbuild|allow-unofficial-build",
                                  "AllowUnofficialBuild - When not using the official build you must set this flag for choco to continue.",
-                                 option => config.AllowUnofficialBuild = option != null)
+                                 option => config.AllowUnofficialBuild = option != null) 
+                            .Add("failstderr|failonstderr|fail-on-stderr|fail-on-standard-error|fail-on-error-output",
+                                 "FailOnStandardError - Fail on standard error output (stderr), typically received when running external commands during install providers. This overrides the feature failOnStandardError.",
+                                 option => config.Features.FailOnStandardError = option != null)
+                            .Add("use-system-powershell",
+                                 "UseSystemPowerShell - Execute PowerShell using an external process instead of the built-in PowerShell host.",
+                                 option => config.Features.UsePowerShellHost = option == null)
                             ;
                     },
                 (unparsedArgs) =>
@@ -219,7 +293,7 @@ namespace chocolatey.infrastructure.app.builders
                         "chocolatey".Log().Info(@"
 {0}
 
-Please run chocolatey with `choco command -help` for specific help on 
+Please run chocolatey with `choco command -help` for specific help on
  each command.
 ".format_with(commandsLog.ToString()));
                         "chocolatey".Log().Info(ChocolateyLoggers.Important, @"How To Pass Options / Switches");
@@ -228,24 +302,24 @@ You can pass options and switches in the following ways:
 
  * `-`, `/`, or `--` (one character switches should not use `--`)
  * **Option Bundling / Bundled Options**: One character switches can be
-   bundled. e.g. `-d` (debug), `-f` (force), `-v` (verbose), and `-y` 
+   bundled. e.g. `-d` (debug), `-f` (force), `-v` (verbose), and `-y`
    (confirm yes) can be bundled as `-dfvy`.
- * ***Note:*** If `debug` or `verbose` are bundled with local options 
+ * ***Note:*** If `debug` or `verbose` are bundled with local options
    (not the global ones above), some logging may not show up until after
    the local options are parsed.
- * **Use Equals**: You can also include or not include an equals sign 
+ * **Use Equals**: You can also include or not include an equals sign
    `=` between options and values.
- * **Quote Values**: When you need to quote things, such as when using 
-   spaces, please use apostrophes (`'value'`). In cmd.exe you may be 
-   able to use just double quotes (`""value""`) but in powershell.exe 
-   you may need to either escape the quotes with backticks 
-   (`` `""value`"" ``) or use a combination of double quotes and 
-   apostrophes (`""'value'""`). This is due to the hand off to 
+ * **Quote Values**: When you need to quote things, such as when using
+   spaces, please use apostrophes (`'value'`). In cmd.exe you may be
+   able to use just double quotes (`""value""`) but in powershell.exe
+   you may need to either escape the quotes with backticks
+   (`` `""value`"" ``) or use a combination of double quotes and
+   apostrophes (`""'value'""`). This is due to the hand off to
    PowerShell - it seems to strip off the outer set of quotes.
- * Options and switches apply to all items passed, so if you are 
-   installing multiple packages, and you use `--version=1.0.0`, choco 
-   is going to look for and try to install version 1.0.0 of every 
-   package passed. So please split out multiple package calls when 
+ * Options and switches apply to all items passed, so if you are
+   installing multiple packages, and you use `--version=1.0.0`, choco
+   is going to look for and try to install version 1.0.0 of every
+   package passed. So please split out multiple package calls when
    wanting to pass specific options.
 ");
                         "chocolatey".Log().Info(ChocolateyLoggers.Important, "Default Options and Switches");
@@ -264,6 +338,51 @@ You can pass options and switches in the following ways:
             config.Information.IsInteractive = Environment.UserInteractive;
             config.Information.IsUserAdministrator = ProcessInformation.user_is_administrator();
             config.Information.IsProcessElevated = ProcessInformation.process_is_elevated();
+        }
+
+        public static void set_environment_variables(ChocolateyConfiguration config)
+        {
+            Environment.SetEnvironmentVariable(ApplicationParameters.ChocolateyInstallEnvironmentVariableName, ApplicationParameters.InstallLocation);
+            Environment.SetEnvironmentVariable("CHOCOLATEY_VERSION", config.Information.ChocolateyVersion);
+            Environment.SetEnvironmentVariable("CHOCOLATEY_VERSION_PRODUCT", config.Information.ChocolateyProductVersion);
+            Environment.SetEnvironmentVariable("OS_PLATFORM", config.Information.PlatformType.get_description_or_value());
+            Environment.SetEnvironmentVariable("OS_VERSION", config.Information.PlatformVersion.to_string());
+            Environment.SetEnvironmentVariable("OS_NAME", config.Information.PlatformName.to_string());
+            // experimental until we know if this value returns correctly based on the OS and not the current process.
+            Environment.SetEnvironmentVariable("OS_IS64BIT", config.Information.Is64Bit ? "true" : "false");
+            Environment.SetEnvironmentVariable("IS_ADMIN", config.Information.IsUserAdministrator ? "true" : "false");
+            Environment.SetEnvironmentVariable("IS_PROCESSELEVATED", config.Information.IsProcessElevated ? "true" : "false");
+
+            Environment.SetEnvironmentVariable("TEMP", config.CacheLocation);
+            if (config.Debug)
+            {
+                Environment.SetEnvironmentVariable("ChocolateyEnvironmentDebug", "true");
+            }
+            if (config.Verbose)
+            {
+                Environment.SetEnvironmentVariable("ChocolateyEnvironmentVerbose", "true");
+            }
+            if (!config.Features.CheckSumFiles)
+            {
+                Environment.SetEnvironmentVariable("ChocolateyIgnoreChecksums", "true");
+            }
+            if (!string.IsNullOrWhiteSpace(config.Proxy.Location))
+            {
+                var proxyCreds = string.Empty;
+                if (!string.IsNullOrWhiteSpace(config.Proxy.User) &&
+                    !string.IsNullOrWhiteSpace(config.Proxy.EncryptedPassword)
+                   )
+                {
+                    proxyCreds = "{0}:{1}@".format_with(config.Proxy.User, NugetEncryptionUtility.DecryptString(config.Proxy.EncryptedPassword));
+
+                    Environment.SetEnvironmentVariable("chocolateyProxyUser", config.Proxy.User);
+                    Environment.SetEnvironmentVariable("chocolateyProxyPassword", NugetEncryptionUtility.DecryptString(config.Proxy.EncryptedPassword));
+                }
+
+                Environment.SetEnvironmentVariable("http_proxy", "{0}{1}".format_with(proxyCreds, config.Proxy.Location));
+                Environment.SetEnvironmentVariable("https_proxy", "{0}{1}".format_with(proxyCreds, config.Proxy.Location));
+                Environment.SetEnvironmentVariable("chocolateyProxyLocation", config.Proxy.Location);
+            }
         }
     }
 }

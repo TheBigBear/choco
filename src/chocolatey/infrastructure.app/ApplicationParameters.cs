@@ -84,12 +84,24 @@ namespace chocolatey.infrastructure.app
             public static readonly string ShimGenExe = _fileSystem.combine_paths(InstallLocation, "tools", "shimgen.exe");
         }
 
+        public static class ConfigSettings
+        {
+            public static readonly string CacheLocation = "cacheLocation";
+            public static readonly string ContainsLegacyPackageInstalls = "containsLegacyPackageInstalls";
+            public static readonly string CommandExecutionTimeoutSeconds = "commandExecutionTimeoutSeconds";
+            public static readonly string Proxy = "proxy";
+            public static readonly string ProxyUser = "proxyUser";
+            public static readonly string ProxyPassword = "proxyPassword";
+        }
+        
         public static class Features
         {
             public static readonly string CheckSumFiles = "checksumFiles";
             public static readonly string AutoUninstaller = "autoUninstaller";
             public static readonly string FailOnAutoUninstaller = "failOnAutoUninstaller";
             public static readonly string AllowGlobalConfirmation = "allowGlobalConfirmation";
+            public static readonly string FailOnStandardError = "failOnStandardError";
+            public static readonly string UsePowerShellHost = "powershellHost";
         }
 
         public static class Messages

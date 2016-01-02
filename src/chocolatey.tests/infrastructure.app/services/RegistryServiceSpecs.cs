@@ -46,8 +46,7 @@ namespace chocolatey.tests.infrastructure.app.services
             }
         }
 
-
-
+        [WindowsOnly]
         public class when_RegistryService_get_installer_keys_is_called : RegistryServiceSpecsBase
         {
             private Registry _result;
@@ -71,13 +70,12 @@ namespace chocolatey.tests.infrastructure.app.services
 
         }
 
+        [WindowsOnly]
         public class when_RegistryService_get_key_is_called_for_a_value_that_exists : RegistryServiceSpecsBase
         {
-            //todo does any of this test correctly on *nix?
-
             private RegistryKey _result;
             private RegistryHive _hive = RegistryHive.CurrentUser;
-            private string _subkeyPath = "Console";
+            private string _subkeyPath = "Software";
 
             public override void Context()
             {
@@ -110,14 +108,13 @@ namespace chocolatey.tests.infrastructure.app.services
             [Fact]
             public void should_contain_values()
             {
-                _result.GetValueNames().ShouldNotBeEmpty();
+                Service.get_key(_hive, "Environment").GetValueNames().ShouldNotBeEmpty();
             }
         } 
         
+        [WindowsOnly]
         public class when_RegistryService_get_key_is_called_for_a_value_that_does_not_exist : RegistryServiceSpecsBase
         {
-            //todo does any of this test correctly on *nix?
-
             private RegistryKey _result;
             private RegistryHive _hive = RegistryHive.CurrentUser;
             private string _subkeyPath = "Software\\alsdjfalskjfaasdfasdf";
