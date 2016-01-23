@@ -21,6 +21,7 @@ namespace chocolatey.infrastructure.commands
     using System.IO;
     using adapters;
     using filesystem;
+    using logging;
     using platforms;
     using Process = adapters.Process;
 
@@ -120,7 +121,7 @@ namespace chocolatey.infrastructure.commands
                 process = "mono";
             }
 
-            "chocolatey".Log().Debug(() => "Calling command ['\"{0}\" {1}']".format_with(process, arguments));
+            "chocolatey".Log().Debug(() => "Calling command ['\"{0}\" {1}']".format_with(process.escape_curly_braces(), arguments.escape_curly_braces()));
 
             var psi = new ProcessStartInfo(process, arguments)
                 {
@@ -164,21 +165,27 @@ namespace chocolatey.infrastructure.commands
                     {
                         exitCode = p.ExitCode;
                     }
+                    else
+                    {
+                        "chocolatey".Log().Warn(ChocolateyLoggers.Important, () => @"Chocolatey timed out waiting for the command to finish. The timeout 
+ specified (or the default value) was '{0}' seconds. Perhaps try a 
+ higher `--execution-timeout`? See `choco -h` for details.".format_with(waitForExitInSeconds));
+                    }
                 }
             }
 
-            "chocolatey".Log().Debug(() => "Command ['\"{0}\" {1}'] exited with '{2}'".format_with(process, arguments, exitCode));
+            "chocolatey".Log().Debug(() => "Command ['\"{0}\" {1}'] exited with '{2}'".format_with(process.escape_curly_braces(), arguments.escape_curly_braces(), exitCode));
             return exitCode;
         }
 
         private static void log_output(object sender, DataReceivedEventArgs e)
         {
-            if (e != null) "chocolatey".Log().Info(e.Data);
+            if (e != null) "chocolatey".Log().Info(e.Data.escape_curly_braces());
         }
 
         private static void log_error(object sender, DataReceivedEventArgs e)
         {
-            if (e != null) "chocolatey".Log().Error(e.Data);
+            if (e != null) "chocolatey".Log().Error(e.Data.escape_curly_braces());
         }
     }
 }

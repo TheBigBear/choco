@@ -82,6 +82,9 @@
       <Link>Properties\SolutionVersion.cs</Link>
     </Compile>
     <Compile Include="AssemblyExtensions.cs" />
+    <Compile Include="infrastructure.app\domain\GenericRegistryKey.cs" />
+    <Compile Include="infrastructure.app\domain\GenericRegistryValue.cs" />
+    <Compile Include="infrastructure.app\domain\RegistryValueKindType.cs" />
     <Compile Include="infrastructure\commandline\ReadKeyTimeout.cs" />
     <Compile Include="infrastructure\commands\Execute.cs" />
     <Compile Include="GetChocolatey.cs" />
@@ -194,7 +197,7 @@
     <Compile Include="infrastructure\adapters\HashAlgorithm.cs" />
     <Compile Include="infrastructure\adapters\IHashAlgorithm.cs" />
     <Compile Include="infrastructure\cryptography\IHashProvider.cs" />
-    <Compile Include="infrastructure\cryptography\CrytpoHashProvider.cs" />
+    <Compile Include="infrastructure\cryptography\CryptoHashProvider.cs" />
     <Compile Include="infrastructure\guards\Ensure.cs" />
     <Compile Include="infrastructure\information\ProcessInformation.cs" />
     <Compile Include="infrastructure\logging\ChocolateyLoggers.cs" />

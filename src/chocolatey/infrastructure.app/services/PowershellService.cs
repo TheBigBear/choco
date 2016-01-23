@@ -21,10 +21,13 @@ namespace chocolatey.infrastructure.app.services
     using System.Management.Automation;
     using System.Management.Automation.Runspaces;
     using System.Reflection;
+    using System.Security.Cryptography;
+    using System.Text;
     using adapters;
     using builders;
     using commandline;
     using configuration;
+    using cryptography;
     using domain;
     using filesystem;
     using infrastructure.commands;
@@ -97,12 +100,15 @@ namespace chocolatey.infrastructure.app.services
             return run_action(configuration, packageResult, CommandNameType.uninstall);
         }
 
+        private string get_helpers_folder()
+        {
+            return _fileSystem.combine_paths(ApplicationParameters.InstallLocation, "helpers");
+        }
+
         public string wrap_script_with_module(string script, ChocolateyConfiguration config)
         {
-            var installerModules = _fileSystem.get_files(ApplicationParameters.InstallLocation, "chocolateyInstaller.psm1", SearchOption.AllDirectories);
-            var installerModule = installerModules.FirstOrDefault();
-            var scriptRunners = _fileSystem.get_files(ApplicationParameters.InstallLocation, "chocolateyScriptRunner.ps1", SearchOption.AllDirectories);
-            var scriptRunner = scriptRunners.FirstOrDefault();
+            var installerModule = _fileSystem.combine_paths(get_helpers_folder(), "chocolateyInstaller.psm1");
+            var scriptRunner = _fileSystem.combine_paths(get_helpers_folder(), "chocolateyScriptRunner.ps1");
             // removed setting all errors to terminating. Will cause too
             // many issues in existing packages, including upgrading
             // Chocolatey from older POSH client due to log errors
@@ -204,6 +210,17 @@ namespace chocolatey.infrastructure.app.services
                 //    Environment.SetEnvironmentVariable("ChocolateyEnvironmentQuiet","true");
                 //}
 
+                if (package.IsDownloadCacheAvailable)
+                {
+                    foreach (var downloadCache in package.DownloadCache.or_empty_list_if_null())
+                    {
+                        var urlKey = CryptoHashProvider.hash_value(downloadCache.OriginalUrl, CryptoHashProviderType.Sha256).Replace("=",string.Empty);
+                        Environment.SetEnvironmentVariable("CacheFile_{0}".format_with(urlKey), downloadCache.FileName);
+                        Environment.SetEnvironmentVariable("CacheChecksum_{0}".format_with(urlKey), downloadCache.Checksum);
+                        //Environment.SetEnvironmentVariable("CacheChecksumType_{0}".format_with(urlKey), "md5");
+                    }
+                }
+
                 this.Log().Debug(ChocolateyLoggers.Important, "Contents of '{0}':".format_with(chocoPowerShellScript));
                 string chocoPowerShellScriptContents = _fileSystem.read_file(chocoPowerShellScript);
                 this.Log().Debug(chocoPowerShellScriptContents.escape_curly_braces());
@@ -257,7 +274,7 @@ namespace chocolatey.infrastructure.app.services
                     }
                     catch (Exception ex)
                     {
-                        this.Log().Error(ex.Message);
+                        this.Log().Error(ex.Message.escape_curly_braces());
                         result.ExitCode = -1;
                     }
 
@@ -315,26 +332,26 @@ namespace chocolatey.infrastructure.app.services
                     //inspect for different streams
                     if (e.Data.StartsWith("DEBUG:"))
                     {
-                        this.Log().Debug(() => " " + e.Data);
+                        this.Log().Debug(() => " " + e.Data.escape_curly_braces());
                     }
                     else if (e.Data.StartsWith("WARNING:"))
                     {
-                        this.Log().Warn(() => " " + e.Data);
+                        this.Log().Warn(() => " " + e.Data.escape_curly_braces());
                     }
                     else if (e.Data.StartsWith("VERBOSE:"))
                     {
-                        this.Log().Info(ChocolateyLoggers.Verbose, () => " " + e.Data);
+                        this.Log().Info(ChocolateyLoggers.Verbose, () => " " + e.Data.escape_curly_braces());
                     }
                     else
                     {
-                        this.Log().Info(() => " " + e.Data);
+                        this.Log().Info(() => " " + e.Data.escape_curly_braces());
                     }
                 },
                 (s, e) =>
                 {
                     if (string.IsNullOrWhiteSpace(e.Data)) return;
                     result.StandardErrorWritten = true;
-                    this.Log().Error(() => " " + e.Data);
+                    this.Log().Error(() => " " + e.Data.escape_curly_braces());
                 });
 
             return result;
@@ -375,7 +392,7 @@ namespace chocolatey.infrastructure.app.services
             }
             catch (Exception ex)
             {
-                this.Log().Debug(ChocolateyLoggers.Verbose, "Attempting to load assembly {0} failed:{1} {2}".format_with(requestedAssembly.Name, Environment.NewLine, ex.Message));
+                this.Log().Debug(ChocolateyLoggers.Verbose, "Attempting to load assembly {0} failed:{1} {2}".format_with(requestedAssembly.Name, Environment.NewLine, ex.Message.escape_curly_braces()));
                 return null;
             }
         }
@@ -465,12 +482,12 @@ namespace chocolatey.infrastructure.app.services
                                 if (!string.IsNullOrWhiteSpace(scriptError)) errorStackTrace = scriptError;
                             }
                         }
-                        this.Log().Error("ERROR: {0}{1}".format_with(ex.Message, !config.Debug ? string.Empty : "{0} {1}".format_with(Environment.NewLine,errorStackTrace)));
+                        this.Log().Error("ERROR: {0}{1}".format_with(ex.Message.escape_curly_braces(), !config.Debug ? string.Empty : "{0} {1}".format_with(Environment.NewLine, errorStackTrace.escape_curly_braces())));
                     }
                     catch (Exception ex)
                     {
                         // Unfortunately this doesn't print line number and character. It might be nice to get back to those items unless it involves tons of work.
-                        this.Log().Error("ERROR: {0}{1}".format_with(ex.Message, !config.Debug ? string.Empty : "{0} {1}".format_with(Environment.NewLine,ex.StackTrace)));
+                        this.Log().Error("ERROR: {0}{1}".format_with(ex.Message.escape_curly_braces(), !config.Debug ? string.Empty : "{0} {1}".format_with(Environment.NewLine, ex.StackTrace.escape_curly_braces())));
                     }
 
                     if (pipeline.PipelineStateInfo != null)
