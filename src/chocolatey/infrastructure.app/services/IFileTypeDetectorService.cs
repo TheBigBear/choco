@@ -1,4 +1,4 @@
-﻿// Copyright © 2011 - Present RealDimensions Software, LLC
+// Copyright © 2011 - Present RealDimensions Software, LLC
 // 
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,20 +13,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-namespace chocolatey.infrastructure.app.messages
+namespace chocolatey.infrastructure.app.services
 {
-    using events;
-    using infrastructure.commands;
-
-    public class PreRunEvent<TCommand> : IEvent where TCommand : ICommand
+    /// <summary>
+    /// Detects file types.
+    /// </summary>
+    public interface IFileTypeDetectorService
     {
-        public TCommand Command { get; private set; }
-        public object[] State { get; private set; }
-
-        public PreRunEvent(TCommand command, object[] state)
-        {
-            Command = command;
-            State = state;
-        }
+        /// <summary>
+        /// Detects file types and returns the output for further parsing.
+        /// </summary>
+        /// <param name="filePath">The file path.</param>
+        /// <returns>The results of detecting the file type</returns>
+        string scan_file(string filePath);
     }
 }
