@@ -37,13 +37,13 @@ namespace chocolatey.infrastructure.app.services
 
         public void noop(ChocolateyConfiguration configuration)
         {
-            var templateLocation = _fileSystem.combine_paths(_fileSystem.get_current_directory(), configuration.NewCommand.Name);
+            var templateLocation = _fileSystem.combine_paths(configuration.OutputDirectory ?? _fileSystem.get_current_directory(), configuration.NewCommand.Name);
             this.Log().Info(() => "Would have generated a new package specification at {0}".format_with(templateLocation));
         }
 
         public void generate(ChocolateyConfiguration configuration)
         {
-            var packageLocation = _fileSystem.combine_paths(_fileSystem.get_current_directory(), configuration.NewCommand.Name);
+            var packageLocation = _fileSystem.combine_paths(configuration.OutputDirectory ?? _fileSystem.get_current_directory(), configuration.NewCommand.Name);
             if (_fileSystem.directory_exists(packageLocation) && !configuration.Force)
             {
                 throw new ApplicationException(
@@ -96,6 +96,7 @@ namespace chocolatey.infrastructure.app.services
             {
                 generate_file_from_template(configuration, tokens, NuspecTemplate.Template, _fileSystem.combine_paths(packageLocation, "{0}.nuspec".format_with(tokens.PackageNameLower)), Encoding.UTF8);
                 generate_file_from_template(configuration, tokens, ChocolateyInstallTemplate.Template, _fileSystem.combine_paths(packageToolsLocation, "chocolateyinstall.ps1"), Encoding.UTF8);
+                generate_file_from_template(configuration, tokens, ChocolateyBeforeModifyTemplate.Template, _fileSystem.combine_paths(packageToolsLocation, "chocolateybeforemodify.ps1"), Encoding.UTF8);
                 generate_file_from_template(configuration, tokens, ChocolateyUninstallTemplate.Template, _fileSystem.combine_paths(packageToolsLocation, "chocolateyuninstall.ps1"), Encoding.UTF8);
                 generate_file_from_template(configuration, tokens, ChocolateyLicenseFileTemplate.Template, _fileSystem.combine_paths(packageToolsLocation, "LICENSE.txt"), Encoding.UTF8);
                 generate_file_from_template(configuration, tokens, ChocolateyVerificationFileTemplate.Template, _fileSystem.combine_paths(packageToolsLocation, "VERIFICATION.txt"), Encoding.UTF8);

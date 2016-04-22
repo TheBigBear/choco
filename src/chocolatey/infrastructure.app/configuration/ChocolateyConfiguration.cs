@@ -185,6 +185,7 @@ NOTE: Hiding sensitive configuration data! Please double and triple
         public string Version { get; set; }
         public bool AllVersions { get; set; }
         public bool SkipPackageInstallProvider { get; set; }
+        public string OutputDirectory { get; set; }
 
         // install/update
         /// <summary>
@@ -339,6 +340,8 @@ NOTE: Hiding sensitive configuration data! Please double and triple
         public bool UsePowerShellHost { get; set; }
         public bool LogEnvironmentValues { get; set; }
         public bool VirusCheck { get; set; }
+        public bool FailOnInvalidOrMissingLicense { get; set; }
+        public bool IgnoreInvalidOptionsSwitches { get; set; }
     }
 
     //todo: retrofit other command configs this way

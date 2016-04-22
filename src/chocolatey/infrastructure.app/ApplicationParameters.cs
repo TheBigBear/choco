@@ -38,6 +38,7 @@ namespace chocolatey.infrastructure.app
         public static readonly string CommonAppDataChocolatey = _fileSystem.combine_paths(System.Environment.GetFolderPath(System.Environment.SpecialFolder.CommonApplicationData), Name);
         public static readonly string LoggingLocation = _fileSystem.combine_paths(InstallLocation, "logs");
         public static readonly string LoggingFile = @"chocolatey.log";
+        public static readonly string LoggingSummaryFile = @"choco.summary.log";
         public static readonly string Log4NetConfigurationAssembly = @"chocolatey";
         public static readonly string Log4NetConfigurationResource = @"chocolatey.infrastructure.logging.log4net.config.xml";
         public static readonly string ChocolateyFileResources = "chocolatey.resources";
@@ -111,6 +112,8 @@ namespace chocolatey.infrastructure.app
             public static readonly string UsePowerShellHost = "powershellHost";
             public static readonly string LogEnvironmentValues = "logEnvironmentValues";
             public static readonly string VirusCheck = "virusCheck";
+            public static readonly string FailOnInvalidOrMissingLicense = "failOnInvalidOrMissingLicense";
+            public static readonly string IgnoreInvalidOptionsSwitches = "ignoreInvalidOptionsSwitches";
         }
 
         public static class Messages
