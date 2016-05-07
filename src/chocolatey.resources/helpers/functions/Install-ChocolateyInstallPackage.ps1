@@ -83,7 +83,22 @@ param(
   }
 
   $additionalInstallArgs = $env:chocolateyInstallArguments;
-  if ($additionalInstallArgs -eq $null) { $additionalInstallArgs = ''; }
+  if ($additionalInstallArgs -eq $null) { 
+    $additionalInstallArgs = ''; 
+  } else {
+    if ($additionalInstallArgs -match 'installdir' -or `
+      $additionalInstallArgs -match 'targetdir' -or `
+      $additionalInstallArgs -match 'dir\=' -or `
+      $additionalInstallArgs -match '\/d\='
+    ) {
+@"
+Pro / Business supports a single, ubiquitous install directory option.
+ Stop the hassle of determining how to pass install directory overrides
+ to install arguments for each package / installer type.
+ Check out Pro / Business - https://bit.ly/choco_pro_business"
+"@ | Write-Warning
+    }
+  }
   $overrideArguments = $env:chocolateyInstallOverride;
   
   if ($fileType -like 'msi') {
@@ -95,8 +110,7 @@ param(
       $msiArgs = "$msiArgs $silentArgs $additionalInstallArgs";
     }
 
-    $env:ChocolateyExitCode = Start-ChocolateyProcessAsAdmin "$msiArgs" 'msiexec' -validExitCodes $validExitCodes
-    #Start-Process -FilePath msiexec -ArgumentList $msiArgs -Wait
+    $env:ChocolateyExitCode = Start-ChocolateyProcessAsAdmin "$msiArgs" "$($env:SystemRoot)\System32\msiexec.exe" -validExitCodes $validExitCodes
   }
 
   if ($fileType -like 'exe') {
